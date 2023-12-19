@@ -3,6 +3,7 @@ package buildpackapplifecycle
 import (
 	"bytes"
 	"crypto/md5"
+	"crypto/sha256"
 	"flag"
 	"fmt"
 	"math"
@@ -151,13 +152,22 @@ func (s LifecycleBuilderConfig) BuildDir() string {
 	return s.getPath(s.Lookup(lifecycleBuilderBuildDirFlag).Value.String())
 }
 
-func (s LifecycleBuilderConfig) BuildpackPath(buildpackName string) string {
+func (s LifecycleBuilderConfig) CompatibilityBuildpackPath(buildpackName string) string {
 	baseDir := s.BuildpacksDir()
 	buildpackURL, err := url.Parse(buildpackName)
 	if err == nil && buildpackURL.IsAbs() {
 		baseDir = s.BuildpacksDownloadDir()
 	}
 	return filepath.Join(baseDir, fmt.Sprintf("%x", md5.Sum([]byte(buildpackName))))
+}
+
+func (s LifecycleBuilderConfig) BuildpackPath(buildpackName string) string {
+	baseDir := s.BuildpacksDir()
+	buildpackURL, err := url.Parse(buildpackName)
+	if err == nil && buildpackURL.IsAbs() {
+		baseDir = s.BuildpacksDownloadDir()
+	}
+	return filepath.Join(baseDir, fmt.Sprintf("%x", sha256.Sum256([]byte(buildpackName))))
 }
 
 func (s LifecycleBuilderConfig) BuildpackOrder() []string {

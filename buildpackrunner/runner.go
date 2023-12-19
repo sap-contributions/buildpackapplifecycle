@@ -2,7 +2,7 @@ package buildpackrunner
 
 import (
 	"bytes"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -413,6 +413,7 @@ func (runner *Runner) downloadBuildpacks() error {
 		if downloadErr != nil {
 			return downloadErr
 		}
+		os.Symlink(destination, runner.config.CompatibilityBuildpackPath(buildpackName))
 	}
 
 	return nil
@@ -446,14 +447,29 @@ func (runner *Runner) cleanCacheDir() error {
 
 func (runner *Runner) buildpackPath(buildpack string) (string, error) {
 	buildpackPath := runner.config.BuildpackPath(buildpack)
+	compatibilityBuildpackPath := runner.config.CompatibilityBuildpackPath(buildpack)
 
 	if runner.pathHasBinDirectory(buildpackPath) {
 		return buildpackPath, nil
 	}
+	if runner.pathHasBinDirectory(compatibilityBuildpackPath) {
+		return compatibilityBuildpackPath, nil
+	}
 
 	files, err := ioutil.ReadDir(buildpackPath)
 	if err != nil {
-		return "", newDescriptiveError(nil, "Failed to read buildpack directory '%s' for buildpack '%s'", buildpackPath, buildpack)
+		files2, err2 := ioutil.ReadDir(compatibilityBuildpackPath)
+		if err2 != nil {
+			return "", newDescriptiveError(nil, "Failed to read buildpack directory for buildpack '%s'", buildpack)
+		}
+
+		if len(files2) == 1 {
+			nestedPath := filepath.Join(compatibilityBuildpackPath, files2[0].Name())
+
+			if runner.pathHasBinDirectory(nestedPath) {
+				return nestedPath, nil
+			}
+		}
 	}
 
 	if len(files) == 1 {
@@ -473,7 +489,7 @@ func (runner *Runner) pathHasBinDirectory(pathToTest string) bool {
 }
 
 func (runner *Runner) supplyCachePath(buildpack string) string {
-	return filepath.Join(runner.config.BuildArtifactsCacheDir(), fmt.Sprintf("%x", md5.Sum([]byte(buildpack))))
+	return filepath.Join(runner.config.BuildArtifactsCacheDir(), fmt.Sprintf("%x", sha256.Sum256([]byte(buildpack))))
 }
 
 func fileExists(file string) (bool, error) {
